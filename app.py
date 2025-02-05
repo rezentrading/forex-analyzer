@@ -1,14 +1,35 @@
 import streamlit as st
+import requests
 import pandas as pd
 import plotly.express as px
 
-# 예제 데이터 (FXCM API 연동 시 실제 데이터 사용)
+# FMP API 키 설정
+FMP_API_KEY = EXq8ysjulWcYBreTFdLc7G2PDAv8RW4R  # 여기에 실제 API 키 입력
+BASE_URL = "https://financialmodelingprep.com/api/v3/quote/"
+
+# GBP/USD & EUR/USD 가격 가져오기
+def get_forex_price(pair):
+    url = f"{BASE_URL}{pair}?apikey={FMP_API_KEY}"
+    response = requests.get(url)
+    data = response.json()
+    
+    if response.status_code == 200 and len(data) > 0:
+        return data[0]["price"]  # 실시간 가격 반환
+    else:
+        st.error(f"❌ FMP API 요청 실패: {response.status_code}")
+        return None
+
+# GBP/USD & EUR/USD 가격 데이터 가져오기
+gbp_price = get_forex_price("GBPUSD")
+eur_price = get_forex_price("EURUSD")
+
+# 예제 데이터 (금요일 & 일요일 가격 가정)
 data = {
     'Currency Pair': ['GBP/USD', 'EUR/USD'],
-    'Fri 12:00 Price': [1.3000, 1.1000],
-    'Fri 12:30 Price': [1.3050, 1.1020],
-    'Fri 21:59 Price': [1.3100, 1.1050],
-    'Sun 22:03 Price': [1.3150, 1.1080]
+    'Fri 12:00 Price': [gbp_price - 0.005, eur_price - 0.002],  
+    'Fri 12:30 Price': [gbp_price - 0.003, eur_price - 0.001],
+    'Fri 21:59 Price': [gbp_price - 0.002, eur_price - 0.0015],
+    'Sun 22:03 Price': [gbp_price, eur_price]
 }
 
 df = pd.DataFrame(data)
@@ -20,8 +41,8 @@ df['21:59 vs 22:03 Diff'] = df['Sun 22:03 Price'] - df['Fri 21:59 Price']
 df['21:59 vs 22:03 % Change'] = (df['21:59 vs 22:03 Diff'] / df['Fri 21:59 Price']) * 100
 
 # Streamlit UI
-st.title("FOREX Market Analyzer")
-st.write("## GBP/USD & EUR/USD Market Overview")
+st.title("FOREX Market Analyzer (FMP API 연동)")
+st.write("## 실시간 GBP/USD & EUR/USD 데이터")
 
 # 표 표시
 st.table(df)
@@ -31,6 +52,6 @@ fig = px.line(df, x='Currency Pair', y=['Fri 12:00 Price', 'Fri 12:30 Price', 'F
               title='Price Changes Over Specified Time Intervals')
 st.plotly_chart(fig)
 
-# 경고 표시
+# 경고 표시 (21:59 vs 22:03 중 변동폭이 큰 통화 강조)
 max_diff_pair = df.loc[df['21:59 vs 22:03 Diff'].idxmax(), 'Currency Pair']
 st.warning(f'⚠️ {max_diff_pair} has the largest price difference between Fri 21:59 and Sun 22:03.')
